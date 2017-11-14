@@ -262,72 +262,78 @@ class FacebookAdsApi(object):
         Raises:
             FacebookResponse.error() if the request failed.
         """
-        if not params:
-            params = {}
-        if not headers:
-            headers = {}
-        if not files:
-            files = {}
+        wait = 0
+        success = False
+        while not success:
+            time.sleep(wait)
+            if not params:
+                params = {}
+            if not headers:
+                headers = {}
+            if not files:
+                files = {}
 
-        api_version = api_version or self._api_version
+            api_version = api_version or self._api_version
 
-        if api_version and not re.search('v[0-9]+\.[0-9]+', api_version):
-            raise FacebookBadObjectError(
-                'Please provide the API version in the following format: %s'
-                % self.API_VERSION,
+            if api_version and not re.search('v[0-9]+\.[0-9]+', api_version):
+                raise FacebookBadObjectError(
+                    'Please provide the API version in the following format: %s'
+                    % self.API_VERSION,
+                )
+
+            self._num_requests_attempted += 1
+
+            if not isinstance(path, six.string_types):
+                # Path is not a full path
+                path = "/".join((
+                    self._session.GRAPH or url_override,
+                    api_version,
+                    '/'.join(map(str, path)),
+                ))
+
+            # Include api headers in http request
+            headers = headers.copy()
+            headers.update(FacebookAdsApi.HTTP_DEFAULT_HEADERS)
+
+            if params:
+                params = _top_level_param_json_encode(params)
+
+            # Get request response and encapsulate it in a FacebookResponse
+            if method in ('GET', 'DELETE'):
+                response = self._session.requests.request(
+                    method,
+                    path,
+                    params=params,
+                    headers=headers,
+                    files=files,
+                    timeout=self._session.timeout
+                )
+            else:
+                response = self._session.requests.request(
+                    method,
+                    path,
+                    data=params,
+                    headers=headers,
+                    files=files,
+                    timeout=self._session.timeout
+                )
+            fb_response = FacebookResponse(
+                body=response.text,
+                headers=response.headers,
+                http_status=response.status_code,
+                call={
+                    'method': method,
+                    'path': path,
+                    'params': params,
+                    'headers': headers,
+                    'files': files,
+                },
             )
 
-        self._num_requests_attempted += 1
-
-        if not isinstance(path, six.string_types):
-            # Path is not a full path
-            path = "/".join((
-                self._session.GRAPH or url_override,
-                api_version,
-                '/'.join(map(str, path)),
-            ))
-
-        # Include api headers in http request
-        headers = headers.copy()
-        headers.update(FacebookAdsApi.HTTP_DEFAULT_HEADERS)
-
-        if params:
-            params = _top_level_param_json_encode(params)
-
-        # Get request response and encapsulate it in a FacebookResponse
-        if method in ('GET', 'DELETE'):
-            response = self._session.requests.request(
-                method,
-                path,
-                params=params,
-                headers=headers,
-                files=files,
-                timeout=self._session.timeout
-            )
-        else:
-            response = self._session.requests.request(
-                method,
-                path,
-                data=params,
-                headers=headers,
-                files=files,
-                timeout=self._session.timeout
-            )
-        fb_response = FacebookResponse(
-            body=response.text,
-            headers=response.headers,
-            http_status=response.status_code,
-            call={
-                'method': method,
-                'path': path,
-                'params': params,
-                'headers': headers,
-                'files': files,
-            },
-        )
-
-        if fb_response.is_failure():
-            raise fb_response.error()
+            if fb_response.is_failure():
+                wait = max(1, wait*2)
+            elif fb_response.is_success():
+                success = True
 
         self._num_requests_succeeded += 1
         return fb_response
