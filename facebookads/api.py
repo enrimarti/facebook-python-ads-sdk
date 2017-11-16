@@ -41,6 +41,7 @@ import re
 
 from facebookads.adobjects.objectparser import ObjectParser
 from facebookads.typechecker import TypeChecker
+import time
 
 
 """
@@ -331,7 +332,12 @@ class FacebookAdsApi(object):
             )
 
             if fb_response.is_failure():
-                wait = max(1, wait*2)
+                if fb_response.json()['error'].get('is_transient'):
+                    wait = max(1, wait*2)
+                    print(fb_response.json()['error']['message'])
+                    print('Waiting {} seconds before retry'.format(wait))
+                else:
+                    raise fb_response.error()
             elif fb_response.is_success():
                 success = True
 
