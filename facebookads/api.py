@@ -146,6 +146,8 @@ class FacebookAdsApi(object):
             this sdk.
     """
 
+    initial_wait_time = 1
+
     SDK_VERSION = apiconfig.ads_api_config['SDK_VERSION']
 
     API_VERSION = apiconfig.ads_api_config['API_VERSION']
@@ -333,13 +335,13 @@ class FacebookAdsApi(object):
 
             if fb_response.is_failure():
                 if fb_response.json()['error'].get('is_transient'):
-                    wait = max(1, wait*2)
+                    wait = max(FacebookAdsApi.initial_wait_time, wait*2)
                     print(fb_response.json()['error']['message'])
                     print('Waiting {} seconds before retry'.format(wait))
                 else:
                     raise fb_response.error()
             elif fb_response.is_success():
-                success = True
+                 success = True
 
         self._num_requests_succeeded += 1
         return fb_response
